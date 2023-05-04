@@ -250,7 +250,7 @@ def test_columns_and_tables(df):
         return column + 1
 
     test_frame = orca.get_table('test_frame')
-    assert set(test_frame.columns) == set(['a', 'b', 'c'])
+    assert set(test_frame.columns) == {'a', 'b', 'c'}
     assert_frames_equal(
         test_frame.to_frame(),
         pd.DataFrame(
@@ -266,7 +266,7 @@ def test_columns_and_tables(df):
             index=['x', 'y', 'z']))
 
     test_func_df = orca._TABLES['test_func']
-    assert set(test_func_df.columns) == set(['d', 'e'])
+    assert set(test_func_df.columns) == {'d', 'e'}
     assert_frames_equal(
         test_func_df.to_frame(),
         pd.DataFrame(
@@ -282,7 +282,7 @@ def test_columns_and_tables(df):
             {'b': [2, 2.5, 3],
              'd': [4., 5., 6.]},
             index=['x', 'y', 'z']))
-    assert set(test_func_df.columns) == set(['a', 'b', 'c', 'd', 'e'])
+    assert set(test_func_df.columns) == {'a', 'b', 'c', 'd', 'e'}
 
     assert set(orca.list_columns()) == {
         ('test_frame', 'c'), ('test_func', 'd'), ('test_func', 'e')}
@@ -539,7 +539,7 @@ def test_steps(df):
         orca.get_step('asdf')
 
     step = orca.get_step('test_step')
-    assert step._tables_used() == set(['test_table', 'test_table2'])
+    assert step._tables_used() == {'test_table', 'test_table2'}
     step()
 
     table = orca.get_table('test_table')
@@ -761,7 +761,7 @@ def test_injectables_cache():
 
     @orca.injectable(autocall=True, cache=True)
     def inj():
-        return x * x
+        return x**2
 
     def i():
         return orca._INJECTABLES['inj']
@@ -786,7 +786,7 @@ def test_injectables_cache_disabled():
 
     @orca.injectable(autocall=True, cache=True)
     def inj():
-        return x * x
+        return x**2
 
     def i():
         return orca._INJECTABLES['inj']

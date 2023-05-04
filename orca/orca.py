@@ -186,8 +186,10 @@ def _update_scope(wrapper, new_scope=None):
         _CS_FOREVER: 3
     }
     if new_scope not in scopes.keys():
-        msg = '{} is not an allowed cache scope, '.format(new_scope)
-        msg += 'allowed scopes are {}'.format(list(scopes.keys()))
+        msg = (
+            f'{new_scope} is not an allowed cache scope, '
+            + f'allowed scopes are {list(scopes.keys())}'
+        )
         raise ValueError(msg)
 
     # update the cache properties
@@ -303,7 +305,7 @@ def cache_on():
 
 @contextmanager
 def cache_disabled():
-    turn_back_on = True if cache_on() else False
+    turn_back_on = bool(cache_on())
     disable_cache()
 
     yield
@@ -445,9 +447,9 @@ class DataFrameWrapper(object):
 
         """
         with log_start_finish(
-                'getting single column {!r} from table {!r}'.format(
-                    column_name, self.name),
-                logger):
+                    'getting single column {!r} from table {!r}'.format(
+                        column_name, self.name),
+                    logger):
             extra_cols = _columns_for_table(self.name)
             if column_name in extra_cols:
                 with log_start_finish(
@@ -457,10 +459,7 @@ class DataFrameWrapper(object):
                     column = extra_cols[column_name]()
             else:
                 column = self.local[column_name]
-            if self.copy_col:
-                return column.copy()
-            else:
-                return column
+            return column.copy() if self.copy_col else column
 
     def __getitem__(self, key):
         return self.get_column(key)
@@ -599,11 +598,9 @@ class TableFuncWrapper(object):
         wrapped function. (No registered columns included.)
 
         """
-        if self._columns:
-            return self._columns
-        else:
+        if not self._columns:
             self._call_func()
-            return self._columns
+        return self._columns
 
     @property
     def index(self):
@@ -940,8 +937,7 @@ class _InjectableFuncWrapper(object):
         Clear a cached result for this injectable.
 
         """
-        x = _INJECTABLE_CACHE.pop(self.name, None)
-        if x:
+        if x := _INJECTABLE_CACHE.pop(self.name, None):
             logger.debug(
                 'injectable {!r} removed from cache'.format(self.name))
 
@@ -982,10 +978,7 @@ class _StepFuncWrapper(object):
 
         """
         args = list(self._argspec.args)
-        if self._argspec.defaults:
-            default_args = list(self._argspec.defaults)
-        else:
-            default_args = []
+        default_args = list(self._argspec.defaults) if self._argspec.defaults else []
         # Combine names from argument names and argument default values.
         names = args[:len(args) - len(default_args)] + default_args
         tables = set()
@@ -1200,14 +1193,12 @@ def table(
 
     """
     def decorator(func):
-        if table_name:
-            name = table_name
-        else:
-            name = func.__name__
+        name = table_name if table_name else func.__name__
         add_table(
             name, func, cache=cache, cache_scope=cache_scope,
             copy_col=copy_col)
         return func
+
     return decorator
 
 
@@ -1227,7 +1218,7 @@ def get_raw_table(table_name):
     if is_table(table_name):
         return _TABLES[table_name]
     else:
-        raise KeyError('table not found: {}'.format(table_name))
+        raise KeyError(f'table not found: {table_name}')
 
 
 def get_table(table_name):
@@ -1335,13 +1326,11 @@ def column(table_name, column_name=None, cache=False, cache_scope=_CS_FOREVER):
 
     """
     def decorator(func):
-        if column_name:
-            name = column_name
-        else:
-            name = func.__name__
+        name = column_name if column_name else func.__name__
         add_column(
             table_name, name, func, cache=cache, cache_scope=cache_scope)
         return func
+
     return decorator
 
 
@@ -1407,8 +1396,9 @@ def column_map(tables, columns):
     foundcols = tz.reduce(
         lambda x, y: x.union(y), (set(v) for v in colmap.values()))
     if foundcols != columns:
-        raise RuntimeError('Not all required columns were found. '
-                           'Missing: {}'.format(list(columns - foundcols)))
+        raise RuntimeError(
+            f'Not all required columns were found. Missing: {list(columns - foundcols)}'
+        )
     return colmap
 
 
@@ -1467,10 +1457,9 @@ def _memoize_function(f, name, cache_scope=_CS_FOREVER):
 
         if _CACHING and in_cache:
             return cache[cache_key]
-        else:
-            result = f(*args, **kwargs)
-            cache[cache_key] = result
-            return result
+        result = f(*args, **kwargs)
+        cache[cache_key] = result
+        return result
 
     wrapper.__wrapped__ = f
     wrapper.cache = cache
@@ -1522,7 +1511,7 @@ def add_injectable(
                 name, value, cache=cache, cache_scope=cache_scope)
             # clear any cached data from a previously registered value
             value.clear_cached()
-        elif not autocall and memoize:
+        elif memoize:
             value = _memoize_function(value, name, cache_scope=cache_scope)
 
     logger.debug('registering injectable {!r}'.format(name))
@@ -1546,14 +1535,12 @@ def injectable(
 
     """
     def decorator(func):
-        if name:
-            n = name
-        else:
-            n = func.__name__
+        n = name if name else func.__name__
         add_injectable(
             n, func, autocall=autocall, cache=cache, cache_scope=cache_scope,
             memoize=memoize)
         return func
+
     return decorator
 
 
@@ -1693,12 +1680,10 @@ def step(step_name=None):
 
     """
     def decorator(func):
-        if step_name:
-            name = step_name
-        else:
-            name = func.__name__
+        name = step_name if step_name else func.__name__
         add_step(name, func)
         return func
+
     return decorator
 
 
@@ -1721,7 +1706,7 @@ def get_step(step_name):
     if is_step(step_name):
         return _STEPS[step_name]
     else:
-        raise KeyError('no step named {}'.format(step_name))
+        raise KeyError(f'no step named {step_name}')
 
 
 Broadcast = namedtuple(
@@ -1829,8 +1814,7 @@ def _all_reachable_tables(t):
 
     """
     for k, v in t.items():
-        for tname in _all_reachable_tables(v):
-            yield tname
+        yield from _all_reachable_tables(v)
         yield k
 
 
@@ -1842,11 +1826,10 @@ def _recursive_getitem(d, key):
     """
     if key in d:
         return d
+    for v in d.values():
+        return _recursive_getitem(v, key)
     else:
-        for v in d.values():
-            return _recursive_getitem(v, key)
-        else:
-            raise KeyError('Key not found: {}'.format(key))
+        raise KeyError(f'Key not found: {key}')
 
 
 def _dict_value_to_pairs(d):
@@ -1880,11 +1863,10 @@ def _next_merge(merge_node):
     """
     if all(_is_leaf_node(d) for d in _dict_value_to_pairs(merge_node)):
         return merge_node
+    for d in tz.remove(_is_leaf_node, _dict_value_to_pairs(merge_node)):
+        return _next_merge(d)
     else:
-        for d in tz.remove(_is_leaf_node, _dict_value_to_pairs(merge_node)):
-            return _next_merge(d)
-        else:
-            raise OrcaError('No node found for next merge.')
+        raise OrcaError('No node found for next merge.')
 
 
 def merge_tables(target, tables, columns=None, drop_intersection=True):
@@ -1920,16 +1902,19 @@ def merge_tables(target, tables, columns=None, drop_intersection=True):
         target = target.name
 
     # allow tables to be strings or table wrappers
-    tables = [get_table(t)
-              if not isinstance(t, (DataFrameWrapper, TableFuncWrapper)) else t
-              for t in tables]
+    tables = [
+        t
+        if isinstance(t, (DataFrameWrapper, TableFuncWrapper))
+        else get_table(t)
+        for t in tables
+    ]
 
     merges = {t.name: {} for t in tables}
     tables = {t.name: t for t in tables}
     casts = _get_broadcasts(tables.keys())
     logger.debug(
-        'attempting to merge tables {} to target table {}'.format(
-            tables.keys(), target))
+        f'attempting to merge tables {tables.keys()} to target table {target}'
+    )
 
     # relate all the tables by registered broadcasts
     for table, onto in casts:
@@ -1941,8 +1926,8 @@ def merge_tables(target, tables, columns=None, drop_intersection=True):
 
     if all_tables != set(tables.keys()):
         raise RuntimeError(
-            ('Not all tables can be merged to target "{}". Unlinked tables: {}'
-             ).format(target, list(set(tables.keys()) - all_tables)))
+            f'Not all tables can be merged to target "{target}". Unlinked tables: {list(set(tables.keys()) - all_tables)}'
+        )
 
     # add any columns necessary for indexing into other tables
     # during merges
@@ -1975,8 +1960,7 @@ def merge_tables(target, tables, columns=None, drop_intersection=True):
             cast_table = frames[cast]
             bc = casts[(cast, onto)]
 
-            with log_start_finish(
-                    'merge tables {} and {}'.format(onto, cast), logger):
+            with log_start_finish(f'merge tables {onto} and {cast}', logger):
 
                 intersection = set(onto_table.columns).\
                     intersection(cast_table.columns)
@@ -2066,8 +2050,8 @@ def write_tables(fname, table_names=None, prefix=None, compress=False, local=Fal
     key_template = '{}/{{}}'.format(prefix) if prefix is not None else '{}'
 
     # set compression options to zlib level-1 if compress arg is True
-    complib = compress and 'zlib' or None
-    complevel = compress and 1 or 0
+    complib = 'zlib' if compress else None
+    complevel = 1 if compress else 0
 
     with pd.HDFStore(fname, mode='a', complib=complib, complevel=complevel) as store:
         for t in tables:
@@ -2134,11 +2118,11 @@ def run(steps, iter_vars=None, data_out=None, out_interval=1,
     if out_base_tables is None or out_run_tables is None:
         step_tables = get_step_table_names(steps)
 
-        if out_base_tables is None:
-            out_base_tables = step_tables
+    if out_base_tables is None:
+        out_base_tables = step_tables
 
-        if out_run_tables is None:
-            out_run_tables = step_tables
+    if out_run_tables is None:
+        out_run_tables = step_tables
 
     # write out the base (inputs)
     if data_out:
@@ -2176,9 +2160,8 @@ def run(steps, iter_vars=None, data_out=None, out_interval=1,
              '{:.2f} s').format(i, var, time.time() - t1))
 
         # write out the results for the current iteration
-        if data_out:
-            if (i - 1) % out_interval == 0 or i == max_i:
-                write_tables(data_out, out_run_tables, var, compress=compress, local=out_run_local)
+        if data_out and ((i - 1) % out_interval == 0 or i == max_i):
+            write_tables(data_out, out_run_tables, var, compress=compress, local=out_run_local)
 
         clear_cache(scope=_CS_ITER)
 
